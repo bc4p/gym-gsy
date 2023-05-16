@@ -11,14 +11,22 @@ class GsyEnv(gym.Env):
 
     def __init__(self):
         self.sim_controller = SimulationController()
+        self.obs = {}
         pass
 
     def reset(self):
         self.sim_controller.start()
-        pass
+        obs = self.sim_controller.current_observation
+        info = self.sim_controller.current_info
+        return obs, info
 
     def step(self):
-        pass
+        self.sim_controller.next_slot()
+        obs = self.sim_controller.current_observation
+        info = self.sim_controller.current_info
+        terminated = self.sim_controller.is_finished
+        reward = [0,0,0,0]
+        return obs, reward, terminated, False, info
 
     def render(self):
         pass

@@ -26,6 +26,7 @@ class SimulationController():
         # self.pubsub.psubscribe(**self.redis_sub_channels)
         # self.pubsub.run_in_thread(daemon=True, sleep_time=1)
         self.shared_object = {}
+        self.has_started = False
 
     def check_simulation(f):
         def validated_function(*args, **kwargs):
@@ -42,18 +43,28 @@ class SimulationController():
     @property
     def is_paused(self):
         return self.simulation._status.paused
-
-    @property 
-    def current_observation(self):
-        pass
+    
+    @property
+    def is_finished(self):
+        return self.simulation._status.finished
 
     @property
     def current_market_tree(self):
         return global_objects.external_global_stats.area_stats_tree_dict
+
+    @property
+    def current_observation(self):
+        return self.current_market_tree
+    
+    @property
+    def current_info(self):
+        return self.current_market_tree
     
     @property
     def slot_number(self):
         return self.simulation.progress_info.current_slot_number
+    
+
     
     def next_slot(self):
         if self.is_paused:
@@ -63,18 +74,25 @@ class SimulationController():
             time.sleep(0.1)
         self.pause()
     
-    def start(self, args=[ "-t", "5s", "-s", "15m", "--setup", "api_setup.default_community", "--enable-external-connection", "--paused", "--slot-length-realtime", "10"], 
+    def start(self, args=[ "-t", "5s", "-s", "15m", "--setup", "api_setup.default_community_BC", "--enable-external-connection", "--paused", "--slot-length-realtime", "10"], 
               wait_for_start=True,
               with_oracle=True):
+        
+        if self.has_started:
+            self.stop()
+            self.shared_object = {}
         click_context = gsy_cli.run.make_context("run", args)
-    
-        thread = threading.Thread(target=gsy_cli.execute, args=(click_context.params.values()), kwargs={"object_shared":self.shared_object}, daemon=True)
+        function_parameters = click_context.params
+        args_param, kwargs_param = split_params(function_parameters, ["paused", "seed", "repl", "no_export", "export_path", "enable_bc"])
+        kwargs_param["object_shared"] = self.shared_object
+        thread = threading.Thread(target=gsy_cli.execute, args=(args_param.values()), kwargs=kwargs_param, daemon=True)
         thread.start()
         self.has_started = True
 
         if wait_for_start:
             while not self.simulation:
                 time.sleep(0.1)
+                
         if with_oracle:
             self.start_oracle()
     
@@ -90,13 +108,33 @@ class SimulationController():
         else:
             self.simulation._status.toggle_pause()
 
+    def stop(self):
+        if not self.has_started:
+            print("simulation was never started")
+        else:
+            self.simulation._status.stop()
+            self.has_started = False
+
     def start_oracle(self):
         self.asset_oracle = Oracle(aggregator_name="my asset oracle")
         self.is_oracle_running = True
 
 
+    def register_asset(self, area_name):
+        asset = RedisAssetClient(autoregister=True, pubsub_thread=self.asset_oracle.pubsub, is_blocking=True, area_id=area_name)
+        asset.select_aggregator(self.asset_oracle.aggregator_uuid)
+
+
+    def get_assets(self):
+        return separate_leafs(self.simulation.area)[0]
     
+    def get_no_asset_areas(self):
+        return separate_leafs(self.simulation.area)[1]
+    
+    def get_all_areas(self):
+        return get_nodes(self.simulation.area)
         
+
     # def resume(self):
     #     self._run_command("resume")
     #     self.is_running = True
@@ -115,9 +153,6 @@ class SimulationController():
     # def handle_resume_response(self, message):
     #     print("resume message: ", message)
 
-    def register_asset(self, area_name):
-        asset = RedisAssetClient(autoregister=True, pubsub_thread=self.asset_oracle.pubsub, is_blocking=True, area_id=area_name)
-        asset.select_aggregator(self.asset_oracle.aggregator_uuid)
 
     # def _run_live_command(self, eventType, *args):
     #     self.redis.publish("/live-event", json.dumps({"transaction_id": str(uuid.uuid1()),"eventType":eventType, "transaction_id":1, **args[0]}))
@@ -127,7 +162,36 @@ class SimulationController():
     #     area_dic = json.loads(area_repr)
     #     self._run_live_command("create_area", {"parent_uuid":parent_uuid, "area_representation":area_dic})
 
+## UTILS
+def split_params(param_dict, kwargs_param_list):
+    kwargs_param_dict = {}
+    args_param_dict = {}
+    for param in param_dict:
+        if param in kwargs_param_list:
+            kwargs_param_dict[param] = param_dict[param]
+        else:
+            args_param_dict[param] = param_dict[param]
 
-        
+    return args_param_dict, kwargs_param_dict
 
+
+def separate_leafs(area):
+    leafs = []
+    non_leafs = []
+    areas = get_nodes(area)
+    for area in areas:
+        if len(area.children)==0:
+            leafs.append(area)
+        else:
+            non_leafs.append(area)
+    return leafs, non_leafs
+
+def get_nodes(area):
+    import numpy as np
+    children = area.children
+    leafs_areas = np.array([area])
+    
+    for child in children:
+        leafs_areas = np.append(leafs_areas, get_nodes(child))    
+    return leafs_areas
     
