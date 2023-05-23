@@ -33,3 +33,18 @@ class GsyEnv(gym.Env):
 
     def close(self):
         pass
+
+
+class MarketAgent(object):
+    def __init__(self, area, marketNode) -> None:
+        self.area = area
+        self.strategy = area.strategy
+        self.marketNode = marketNode
+        pass
+
+    def send_offer(self, price, energy):
+        self.strategy.post_offer(list(self.marketNode._markets.markets.values())[0], price=price, energy=energy)
+
+    def send_bid(self, price, energy):
+        self.strategy.post_bid(list(self.marketNode._markets.markets.values())[0], price=price, energy=energy)
+
