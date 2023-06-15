@@ -16,6 +16,9 @@ from gsy_e.setup.api_setup.default_community_BC import get_setup
 from gsy_e.gsy_e_core.area_serializer import area_to_string
 from gsy_e.gsy_e_core.global_objects_singleton import global_objects
 
+from gsy_e.models.area import Area, Market
+
+
 class SimulationController():
     def __init__(self):
         # self.redis = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
@@ -125,10 +128,10 @@ class SimulationController():
         asset.select_aggregator(self.asset_oracle.aggregator_uuid)
 
 
-    def get_assets(self):
+    def get_assets(self) -> list[Area]:
         return separate_leafs(self.simulation.area)[0]
     
-    def get_no_asset_areas(self):
+    def get_no_asset_areas(self) -> list[Market]:
         return separate_leafs(self.simulation.area)[1]
     
     def get_all_areas(self):
@@ -175,7 +178,7 @@ def split_params(param_dict, kwargs_param_list):
     return args_param_dict, kwargs_param_dict
 
 
-def separate_leafs(area):
+def separate_leafs(area) -> tuple[list[Area], list[Market]]:
     leafs = []
     non_leafs = []
     areas = get_nodes(area)

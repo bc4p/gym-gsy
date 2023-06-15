@@ -5,6 +5,7 @@ import gymnasium as gym
 from gymnasium import spaces
 
 from simulationController import SimulationController
+from gsy_e.models.area import Market
 
 class GsyEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
@@ -34,7 +35,6 @@ class GsyEnv(gym.Env):
     def close(self):
         pass
 
-
 class MarketAgent(object):
     def __init__(self, area, marketNode) -> None:
         self.area = area
@@ -42,9 +42,45 @@ class MarketAgent(object):
         self.marketNode = marketNode
         pass
 
-    def send_offer(self, price, energy):
-        self.strategy.post_offer(list(self.marketNode._markets.markets.values())[0], price=price, energy=energy)
+    def send_offer(self, rate, energy, replace_existing=False):
+        self.strategy.post_offer(
+            self.marketNode.spot_market,
+            price = energy * rate / 1000.0,
+            energy = energy / 1000.0,
+            replace_existing=replace_existing
+            
+        )
 
-    def send_bid(self, price, energy):
-        self.strategy.post_bid(list(self.marketNode._markets.markets.values())[0], price=price, energy=energy)
+    def send_bid(self, rate, energy, replace_existing=False):
+        self.strategy.post_bid(
+            self.marketNode.spot_market,
+            energy * rate / 1000.0,
+            energy / 1000.0,
+            replace_existing=replace_existing
+
+        )
+
+class AgentsCoordinator():
+    def __init__(self, agents: list[MarketAgent], market:Market)-> None:
+        self.agents = agents
+        self.market = market
+
+    @property
+    def spot_market(self):
+        return self.market.spot_market
+
+    @property
+    def past_markets(self):
+        return self.market.past_markets
+    
+    @property 
+    def current_bids(self):
+        return [bid.serializable_dict() for bid in list(self.spot_market.bids.values())]
+    @property 
+    def current_offers(self):
+        return [offer.serializable_dict() for offer in list(self.spot_market.offers.values())]
+
+
+    
+
 
