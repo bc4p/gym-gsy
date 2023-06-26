@@ -79,6 +79,18 @@ class AgentsCoordinator():
     @property 
     def current_offers(self):
         return [offer.serializable_dict() for offer in list(self.spot_market.offers.values())]
+    
+    @property 
+    def current_trades(self):
+        return [offer.serializable_dict() for offer in list(self.spot_market.offers.values())]
+    
+    @property
+    def past_trades(self):
+        trades = []
+        for trade in [market.trades for market in list(self.past_markets)]:
+            if len(trade) != 0: 
+                trades.append(trade[0].serializable_dict())
+        return trades
 
 
     
